@@ -68,29 +68,32 @@ usertrap(void)
   } 
   else if(r_scause() == 13 || r_scause() == 15){
     uint64 va = PGROUNDDOWN(r_stval());
+    if(va >= p->sz || va >= MAXVA){
+      p->killed = 1;
+      goto end;
+    }
     pte_t *pte;
     if ((pte = walk(p->pagetable, va, 0)) == 0) {
-      panic("page not found\n");
+      p->killed = 1;
+      goto end;
     }
     if ((*pte & PTE_COW) && (*pte & PTE_V)) {
       uint flags = PTE_FLAGS(*pte);
       flags |= PTE_W;
       flags &= ~PTE_COW;
       char *mem;
-      if((mem = kalloc()) == 0)
-        panic("kalloc failed\n");
+      if((mem = kalloc()) == 0) {
+        p->killed = 1;
+        goto end;
+      }
       uint64 pa = PTE2PA(*pte);
       memmove(mem, (char*)pa, PGSIZE);
-      // printf("hey\n");
-      // uvmunmap(p->pagetable, va, PGSIZE, 0);
-      // printf("Bey\n");
       kfree((void*)pa);
-      // *pte &= ~0x3ff;
       *pte = PA2PTE(mem) | flags; 
-      // if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0){
-      //   kfree(mem);
-      //   panic("usertrap: mappages failed\n");
-      // }
+    }
+    else {
+      p->killed = 1;
+      goto end;
     }
   }
   else if((which_dev = devintr()) != 0){
@@ -102,6 +105,7 @@ usertrap(void)
     p->killed = 1;
   }
 
+  end:
   if(p->killed)
     exit(-1);
 

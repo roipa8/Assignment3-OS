@@ -33,7 +33,6 @@ void
 increase_ref(uint64 pa)
 {
   int index = (pa - KERNBASE) / PGSIZE;
-  // To check index=-1
   int count;
   do {
     count = ref_counts[index];
@@ -44,7 +43,6 @@ void
 decrease_ref(uint64 pa)
 {
   int index = (pa - KERNBASE) / PGSIZE;
-  // To check index=-1
   int count;
   do {
     count = ref_counts[index];
