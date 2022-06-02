@@ -72,7 +72,7 @@ usertrap(void)
     if ((pte = walk(p->pagetable, va, 0)) == 0) {
       panic("page not found\n");
     }
-    if ((*pte & PTE_COW)) {
+    if ((*pte & PTE_COW) && (*pte & PTE_V) && (*pte & PTE_U)) {
       uint flags = PTE_FLAGS(*pte);
       flags |= PTE_W;
       flags &= ~PTE_COW;
