@@ -314,13 +314,13 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(*pte & PTE_W){
       flags |= PTE_COW;
       flags &= ~PTE_W;
+      *pte &= ~0x3ff;
+      *pte |= flags;
     }
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
     increase_ref(pa);
-    *pte &= ~0x3ff;
-    *pte |= flags;
   }
   return 0;
 
