@@ -29,6 +29,32 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+int cow(pagetable_t pagetable, uint64 va) {
+  if(va >= MAXVA)
+    return -1;
+  pte_t *pte;
+  if ((pte = walk(pagetable, va, 0)) == 0)
+    return -1;
+  if ((*pte & PTE_V) == 0)
+    return -1;
+  if (*pte & PTE_COW) {
+    uint flags = PTE_FLAGS(*pte);
+    flags |= PTE_W;
+    flags &= ~PTE_COW;
+    char *mem;
+    if((mem = kalloc()) == 0) {
+      return -1;
+    }
+    uint64 pa = PTE2PA(*pte);
+    memmove(mem, (char*)pa, PGSIZE);
+    kfree((void*)pa);
+    *pte = PA2PTE(mem) | flags;
+    return 0;
+  }
+  else return 1;
+}
+
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -68,33 +94,8 @@ usertrap(void)
   } 
   else if(r_scause() == 13 || r_scause() == 15){
     uint64 va = PGROUNDDOWN(r_stval());
-    if(va >= p->sz || va >= MAXVA){
+    if (va >= p->sz || cow(p->pagetable, va) != 0)
       p->killed = 1;
-      goto end;
-    }
-    pte_t *pte;
-    if ((pte = walk(p->pagetable, va, 0)) == 0) {
-      p->killed = 1;
-      goto end;
-    }
-    if ((*pte & PTE_COW) && (*pte & PTE_V)) {
-      uint flags = PTE_FLAGS(*pte);
-      flags |= PTE_W;
-      flags &= ~PTE_COW;
-      char *mem;
-      if((mem = kalloc()) == 0) {
-        p->killed = 1;
-        goto end;
-      }
-      uint64 pa = PTE2PA(*pte);
-      memmove(mem, (char*)pa, PGSIZE);
-      kfree((void*)pa);
-      *pte = PA2PTE(mem) | flags; 
-    }
-    else {
-      p->killed = 1;
-      goto end;
-    }
   }
   else if((which_dev = devintr()) != 0){
     // ok
@@ -105,7 +106,6 @@ usertrap(void)
     p->killed = 1;
   }
 
-  end:
   if(p->killed)
     exit(-1);
 
